@@ -103,3 +103,7 @@ def health_check() -> dict[str, str]:
         "status": "healthy",
         "service": "student-service",
     }
+
+from app.metrics import setup_metrics  # noqa: E402
+
+setup_metrics(app)
