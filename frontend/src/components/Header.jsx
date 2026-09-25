@@ -31,6 +31,7 @@ const Header = () => {
       sx={{
         width: `calc(100% - ${drawerWidth}px)`,
         ml: `${drawerWidth}px`,
+        backgroundColor: "#2e7d32",
         zIndex: (theme) =>
           theme.zIndex.drawer + 1,
       }}
