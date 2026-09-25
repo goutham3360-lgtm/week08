@@ -1,0 +1,17 @@
+{
+  "title": "KoalaTech Services",
+  "uid": "koalatech-services",
+  "tags": ["koalatech", "sit722"],
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": true,
+  "refresh": "30s",
+  "time": {"from": "now-30m", "to": "now"},
+  "panels": [
+    {"id": 1, "type": "stat", "title": "Service scrape status (1 = up)", "datasource": {"type": "prometheus", "uid": "prometheus"}, "gridPos": {"x": 0, "y": 0, "w": 24, "h": 4}, "targets": [{"refId": "A", "datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "up{namespace=\"production\",app=~\".+-service\"}", "legendFormat": "{{app}}"}], "fieldConfig": {"defaults": {"thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]}}, "overrides": []}, "options": {"colorMode": "background", "reduceOptions": {"calcs": ["lastNotNull"]}}},
+    {"id": 2, "type": "timeseries", "title": "Request rate per service (req/s)", "datasource": {"type": "prometheus", "uid": "prometheus"}, "gridPos": {"x": 0, "y": 4, "w": 12, "h": 8}, "targets": [{"refId": "A", "datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "sum by (app) (rate(http_requests_total{namespace=\"production\"}[1m]))", "legendFormat": "{{app}}"}], "fieldConfig": {"defaults": {"unit": "reqps"}, "overrides": []}, "options": {"legend": {"displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}}},
+    {"id": 3, "type": "timeseries", "title": "p95 latency per service", "datasource": {"type": "prometheus", "uid": "prometheus"}, "gridPos": {"x": 12, "y": 4, "w": 12, "h": 8}, "targets": [{"refId": "A", "datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "histogram_quantile(0.95, sum by (app, le) (rate(http_request_duration_seconds_bucket{namespace=\"production\"}[5m])))", "legendFormat": "{{app}}"}], "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []}, "options": {"legend": {"displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}}},
+    {"id": 4, "type": "timeseries", "title": "Error rate per service (4xx + 5xx, req/s)", "datasource": {"type": "prometheus", "uid": "prometheus"}, "gridPos": {"x": 0, "y": 12, "w": 12, "h": 8}, "targets": [{"refId": "A", "datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "sum by (app) (rate(http_requests_total{namespace=\"production\",status=~\"4..|5..\"}[1m]))", "legendFormat": "{{app}}"}], "fieldConfig": {"defaults": {"unit": "reqps"}, "overrides": []}, "options": {"legend": {"displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}}},
+    {"id": 5, "type": "timeseries", "title": "Requests by endpoint (req/s)", "datasource": {"type": "prometheus", "uid": "prometheus"}, "gridPos": {"x": 12, "y": 12, "w": 12, "h": 8}, "targets": [{"refId": "A", "datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "sum by (app, path) (rate(http_requests_total{namespace=\"production\"}[5m]))", "legendFormat": "{{app}} {{path}}"}], "fieldConfig": {"defaults": {"unit": "reqps"}, "overrides": []}, "options": {"legend": {"displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}}}
+  ]
+}

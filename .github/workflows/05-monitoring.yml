@@ -1,0 +1,118 @@
+name: 05 - Monitoring
+
+on:
+  # Runs after every successful production deploy, so scraping is verified
+  # against the images that are actually running
+  workflow_run:
+    workflows: ["04 - Deploy to Production"]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: monitoring
+  cancel-in-progress: false
+
+env:
+  RESOURCE_GROUP: koalatech-week08-rg
+  AKS_CLUSTER: koalatech-aks-wk08-2316609
+
+jobs:
+  monitoring:
+    name: Install Prometheus + Grafana and verify scraping
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Set up kubectl and Helm
+        uses: azure/setup-kubectl@v4
+
+      - uses: azure/setup-helm@v4
+
+      - name: Get AKS credentials
+        run: |
+          az aks get-credentials \
+            --resource-group "$RESOURCE_GROUP" \
+            --name "$AKS_CLUSTER" \
+            --overwrite-existing
+
+      - name: Install / upgrade kube-prometheus-stack
+        env:
+          GRAFANA_ADMIN_PASSWORD: ${{ secrets.GRAFANA_ADMIN_PASSWORD }}
+        run: |
+          helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+          helm repo update
+          helm upgrade --install monitoring prometheus-community/kube-prometheus-stack \
+            --namespace monitoring --create-namespace \
+            --values monitoring/values.yaml \
+            --set grafana.adminPassword="$GRAFANA_ADMIN_PASSWORD" \
+            --wait --timeout 15m
+          helm list -n monitoring
+
+      - name: Apply metrics Services and ServiceMonitor
+        run: kubectl apply -f monitoring/servicemonitor.yaml
+
+      - name: Load Grafana dashboard from the repo (dashboard as code)
+        run: |
+          kubectl create configmap koalatech-dashboard \
+            --namespace monitoring \
+            --from-file=monitoring/dashboards/ \
+            --dry-run=client -o yaml | kubectl apply -f -
+          kubectl label configmap koalatech-dashboard \
+            --namespace monitoring grafana_dashboard=1 --overwrite
+
+      - name: Generate sample traffic
+        run: |
+          kubectl run traffic-gen --namespace production --rm -i --restart=Never \
+            --image=curlimages/curl -- sh -c '
+              for i in $(seq 1 60); do
+                for s in user student lecturer course enrollment; do
+                  curl -s -o /dev/null http://$s-service:8000/health
+                  curl -s -o /dev/null http://$s-service:8000/does-not-exist
+                done
+                sleep 1
+              done'
+
+      - name: Verify Prometheus is scraping all five services
+        run: |
+          kubectl port-forward -n monitoring svc/prometheus-operated 9090:9090 >/dev/null 2>&1 &
+          sleep 5
+          QUERY='count(up{namespace="production",app=~".+-service"} == 1)'
+          UP=0
+          for i in $(seq 1 24); do
+            UP=$(curl -s --get http://localhost:9090/api/v1/query --data-urlencode "query=$QUERY" \
+                 | jq -r '.data.result[0].value[1] // "0"')
+            echo "Attempt $i: $UP/5 services being scraped"
+            [ "$UP" = "5" ] && break
+            sleep 10
+          done
+
+          echo "## Prometheus scrape targets" >> "$GITHUB_STEP_SUMMARY"
+          echo '| Service | up |' >> "$GITHUB_STEP_SUMMARY"
+          echo '|---|---|' >> "$GITHUB_STEP_SUMMARY"
+          curl -s --get http://localhost:9090/api/v1/query \
+            --data-urlencode 'query=up{namespace="production",app=~".+-service"}' \
+            | jq -r '.data.result[] | "| \(.metric.app) | \(.value[1]) |"' >> "$GITHUB_STEP_SUMMARY"
+
+          echo "## Requests recorded in the last 5 minutes" >> "$GITHUB_STEP_SUMMARY"
+          echo '| Service | Requests |' >> "$GITHUB_STEP_SUMMARY"
+          echo '|---|---|' >> "$GITHUB_STEP_SUMMARY"
+          curl -s --get http://localhost:9090/api/v1/query \
+            --data-urlencode 'query=sum by (app) (increase(http_requests_total{namespace="production"}[5m]))' \
+            | jq -r '.data.result[] | "| \(.metric.app) | \(.value[1] | tonumber | floor) |"' >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$UP" != "5" ]; then
+            echo "::error::Prometheus is scraping only $UP of 5 services"
+            exit 1
+          fi
+          echo "All 5 services are being scraped by Prometheus."

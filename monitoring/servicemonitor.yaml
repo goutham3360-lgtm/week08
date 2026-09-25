@@ -1,0 +1,108 @@
+# Metrics Services + ServiceMonitor for KoalaTech (Task 10.2D)
+# Separate Services (with a named port and a label) so the existing
+# application manifests do not need to change.
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: user-service-metrics
+  namespace: production
+  labels:
+    app: user-service
+    koalatech.io/metrics: 'true'
+spec:
+  selector:
+    app: user-service
+  ports:
+    - name: http-metrics
+      port: 8000
+      targetPort: 8000
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: student-service-metrics
+  namespace: production
+  labels:
+    app: student-service
+    koalatech.io/metrics: 'true'
+spec:
+  selector:
+    app: student-service
+  ports:
+    - name: http-metrics
+      port: 8000
+      targetPort: 8000
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: lecturer-service-metrics
+  namespace: production
+  labels:
+    app: lecturer-service
+    koalatech.io/metrics: 'true'
+spec:
+  selector:
+    app: lecturer-service
+  ports:
+    - name: http-metrics
+      port: 8000
+      targetPort: 8000
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: course-service-metrics
+  namespace: production
+  labels:
+    app: course-service
+    koalatech.io/metrics: 'true'
+spec:
+  selector:
+    app: course-service
+  ports:
+    - name: http-metrics
+      port: 8000
+      targetPort: 8000
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: enrollment-service-metrics
+  namespace: production
+  labels:
+    app: enrollment-service
+    koalatech.io/metrics: 'true'
+spec:
+  selector:
+    app: enrollment-service
+  ports:
+    - name: http-metrics
+      port: 8000
+      targetPort: 8000
+
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: koalatech-services
+  namespace: monitoring
+spec:
+  namespaceSelector:
+    matchNames:
+      - production
+  selector:
+    matchLabels:
+      koalatech.io/metrics: 'true'
+  targetLabels:
+    - app
+  endpoints:
+    - port: http-metrics
+      path: /metrics
+      interval: 15s
