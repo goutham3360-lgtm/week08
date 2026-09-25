@@ -2,7 +2,7 @@ name: 04 - Deploy to Production
 
 on:
   workflow_run:
-    workflows: ["03-staging-test.yml"]
+    workflows: ["03 - Test Staging"]
     types:
       - completed
     branches:
