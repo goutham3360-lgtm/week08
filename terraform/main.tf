@@ -1,6 +1,17 @@
+locals {
+  common_tags = {
+    project     = "koalatech"
+    environment = "week08"
+    managed_by  = "terraform"
+    owner       = "2316609"
+    unit        = "SIT722"
+  }
+}
+
 resource "azurerm_resource_group" "rg" {
   name     = var.resource_group_name
   location = var.location
+  tags     = local.common_tags
 }
 
 resource "azurerm_container_registry" "acr" {
@@ -9,6 +20,7 @@ resource "azurerm_container_registry" "acr" {
   location            = azurerm_resource_group.rg.location
   sku                 = "Basic"
   admin_enabled       = true
+  tags                = local.common_tags
 }
 
 resource "azurerm_kubernetes_cluster" "aks" {
@@ -16,6 +28,7 @@ resource "azurerm_kubernetes_cluster" "aks" {
   resource_group_name = azurerm_resource_group.rg.name
   location            = azurerm_resource_group.rg.location
   dns_prefix          = var.aks_cluster_name
+  tags                = local.common_tags
 
   default_node_pool {
     name       = "default"
@@ -41,6 +54,7 @@ resource "azurerm_storage_account" "storage" {
   location                 = azurerm_resource_group.rg.location
   account_tier             = "Standard"
   account_replication_type = "LRS"
+  tags                     = local.common_tags
 }
 
 resource "azurerm_storage_container" "student_photo" {
