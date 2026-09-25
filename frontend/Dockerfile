@@ -22,9 +22,18 @@ ENV VITE_ENROLLMENT_SERVICE_URL=${VITE_ENROLLMENT_SERVICE_URL}
 
 RUN npm run build
 
-FROM nginx:1.27-alpine
+FROM alpine:3.23
 
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# Alpine's own nginx package receives security patches directly,
+# so apk installs the fixed build that Docker Scout checks against.
+# Logs are redirected to stdout/stderr so docker logs and kubectl logs work.
+RUN apk upgrade --no-cache \
+    && apk add --no-cache nginx \
+    && mkdir -p /run/nginx /usr/share/nginx/html \
+    && ln -sf /dev/stdout /var/log/nginx/access.log \
+    && ln -sf /dev/stderr /var/log/nginx/error.log
+
+COPY nginx.conf /etc/nginx/http.d/default.conf
 
 COPY --from=build /app/dist /usr/share/nginx/html
 
