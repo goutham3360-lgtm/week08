@@ -1,41 +1,5 @@
-
-/
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-Terraform · YML
 name: Terraform Infrastructure
- 
+
 on:
   push:
     branches: [main]
@@ -48,22 +12,22 @@ on:
       - "terraform/**"
       - ".github/workflows/terraform.yml"
   workflow_dispatch:
- 
+
 permissions:
   contents: read
- 
+
 # Only one Terraform run at a time (the remote state lock is the second safety net)
 concurrency:
   group: terraform
   cancel-in-progress: false
- 
+
 env:
   TF_IN_AUTOMATION: "true"
- 
+
 defaults:
   run:
     working-directory: terraform
- 
+
 jobs:
   plan:
     name: Format, validate and plan
@@ -72,11 +36,11 @@ jobs:
       has_changes: ${{ steps.plan.outputs.has_changes }}
     steps:
       - uses: actions/checkout@v4
- 
+
       - uses: hashicorp/setup-terraform@v3
         with:
           terraform_wrapper: false
- 
+
       - name: Load Azure credentials for Terraform
         env:
           CREDS: ${{ secrets.AZURE_CREDENTIALS }}
@@ -86,16 +50,16 @@ jobs:
           echo "ARM_CLIENT_SECRET=$(echo "$CREDS" | jq -r .clientSecret)" >> "$GITHUB_ENV"
           echo "ARM_TENANT_ID=$(echo "$CREDS" | jq -r .tenantId)" >> "$GITHUB_ENV"
           echo "ARM_SUBSCRIPTION_ID=$(echo "$CREDS" | jq -r .subscriptionId)" >> "$GITHUB_ENV"
- 
+
       - name: Terraform fmt
         run: terraform fmt -check -recursive
- 
+
       - name: Terraform init (remote backend)
         run: terraform init -input=false
- 
+
       - name: Terraform validate
         run: terraform validate -no-color
- 
+
       - name: Terraform plan
         id: plan
         run: |
@@ -109,7 +73,7 @@ jobs:
           else
             echo "has_changes=false" >> "$GITHUB_OUTPUT"
           fi
- 
+
       - name: Add plan to job summary
         run: |
           echo "## Terraform plan" >> "$GITHUB_STEP_SUMMARY"
@@ -117,7 +81,7 @@ jobs:
           echo '```' >> "$GITHUB_STEP_SUMMARY"
           terraform show -no-color tfplan | tail -n 60 >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
- 
+
       - name: Upload plan file
         if: steps.plan.outputs.has_changes == 'true'
         uses: actions/upload-artifact@v4
@@ -125,7 +89,7 @@ jobs:
           name: tfplan
           path: terraform/tfplan
           retention-days: 1
- 
+
   apply:
     name: Apply (manual approval)
     needs: plan
@@ -137,11 +101,11 @@ jobs:
     environment: infrastructure
     steps:
       - uses: actions/checkout@v4
- 
+
       - uses: hashicorp/setup-terraform@v3
         with:
           terraform_wrapper: false
- 
+
       - name: Load Azure credentials for Terraform
         env:
           CREDS: ${{ secrets.AZURE_CREDENTIALS }}
@@ -151,16 +115,15 @@ jobs:
           echo "ARM_CLIENT_SECRET=$(echo "$CREDS" | jq -r .clientSecret)" >> "$GITHUB_ENV"
           echo "ARM_TENANT_ID=$(echo "$CREDS" | jq -r .tenantId)" >> "$GITHUB_ENV"
           echo "ARM_SUBSCRIPTION_ID=$(echo "$CREDS" | jq -r .subscriptionId)" >> "$GITHUB_ENV"
- 
+
       - name: Terraform init (remote backend)
         run: terraform init -input=false
- 
+
       - name: Download plan file
         uses: actions/download-artifact@v4
         with:
           name: tfplan
           path: terraform
- 
+
       - name: Terraform apply (exactly the approved plan)
         run: terraform apply -input=false -no-color tfplan
- 
